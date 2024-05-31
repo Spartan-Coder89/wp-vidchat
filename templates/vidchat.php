@@ -1,34 +1,22 @@
-<?php get_header(); ?>
+<?php include 'header-vidchat.php'; ?>
 
 <main x-data="vidchat" x-init="initialize()">
-  <div id="wrap">
-    <div class="participant">
-      <div class="video_wrap">
-        <video id="local_stream" autoplay playsinline></video>
-      </div>
-    </div>
-  </div>
-  <div id="actions">
-    <template x-if="create_meeting_enabled">
-      <button type="button" id="create_meeting" @click="create_meeting()">Create meeting</button>
-    </template>
-    <template x-if="hangup_enabled">
-      <button type="button" id="hang_up" @click="hang_up()">Hang up</button>
-    </template>
-    <template x-if="join_meeting_enabled">
-      <button type="button" id="join_meeting" @click="join_meeting()">Join meeting</button>
-    </template>
-  </div>
+  <?php 
+    if (isset($_GET['meeting-id']) and !empty($_GET['meeting-id'])) {
+      include_once 'partials/in_room.php';
+    } else {
+      include_once 'partials/landing.php';
+    }
+  ?>
 </main>
 
-<?php get_footer(); ?>
+<?php include 'footer-vidchat.php';
 
-<?php
-
-echo '<pre>';
-var_dump(get_option('vidchat'));
-echo '</pre>';
 
 // echo '<pre>';
-// var_dump(update_option('vidchat', []));
+// print_r(update_option('vidchat', []));
+// echo '</pre>';
+
+// echo '<pre>';
+// print_r(get_option('vidchat'));
 // echo '</pre>';
