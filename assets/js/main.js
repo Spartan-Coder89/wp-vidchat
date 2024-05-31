@@ -1082,8 +1082,6 @@ document.addEventListener('alpine:init', () => {
       })
       .then(data => {
 
-        console.log(data)
-
         if (data.status === 'success') {
 
           this.invitation_status_state = true
