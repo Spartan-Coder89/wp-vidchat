@@ -219,6 +219,13 @@ document.addEventListener('alpine:init', () => {
 
         call.answer(my_stream); // Answer the call with an A/V stream.
         this.stream(call)
+
+        //  Send screenshare tracks if screenshare state is true
+        if (this.screenshare_state) {
+          const screen_stream_video_track = this.current_screen_stream.getVideoTracks()[0]
+          let peer = this.media_connection_collection[call.peer].peerConnection.getSenders().find(s => s.track.kind === screen_stream_video_track.kind) //  This here is a track finder
+          peer.replaceTrack(screen_stream_video_track)
+        }
       })
     },
 

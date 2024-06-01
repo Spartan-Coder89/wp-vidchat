@@ -232,7 +232,9 @@
       </button>
 
       <button type="button" id="hangup" class="action_button" title="Hangup Call"
-        @click="hang_up()">
+        @click="hang_up()"
+        :disabled="screenshare_state ? true : false"
+        :style="screenshare_state ? 'pointer-events: none;' : 'pointer-events: auto;'">
         <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"           
           x-cloak
           x-show="!hanging_up">
