@@ -234,6 +234,34 @@ document.addEventListener('alpine:init', () => {
           "peer_name" : this.my_participant_name
         }))
 
+        //  Send camera state if camera is in off state
+        if (!this.camera_state) {
+
+          let video_track = this.my_stream_collection[peers_id].getVideoTracks()[0]
+          video_track.enabled = false
+
+          conn.send(JSON.stringify({
+            "type": "state",
+            "participant_id" : this.my_peer_id,
+            "component" : "camera",
+            "state" : this.camera_state
+          }))
+        }
+
+        //  Send microphone state if microphone is in off state
+        if (!this.mic_state) {
+
+          let audio_track = this.my_stream_collection[peers_id].getAudioTracks()[0]
+          audio_track.enabled = false
+
+          conn.send(JSON.stringify({
+            "type": "state",
+            "participant_id" : this.my_peer_id,
+            "component" : "mic",
+            "state" : this.mic_state
+          }))
+        }
+
         this.data_connection_collection[peers_id] = conn
       })
     },
