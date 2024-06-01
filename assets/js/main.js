@@ -226,6 +226,19 @@ document.addEventListener('alpine:init', () => {
           let peer = this.media_connection_collection[call.peer].peerConnection.getSenders().find(s => s.track.kind === screen_stream_video_track.kind) //  This here is a track finder
           peer.replaceTrack(screen_stream_video_track)
         }
+
+        //  Set camera state if camera is in off state
+        if (!this.camera_state) {
+          let video_track = this.my_stream_collection[call.peer].getVideoTracks()[0]
+          video_track.enabled = false
+        }
+
+        //  Set microphone state if microphone is in off state
+        if (!this.mic_state) {
+          let audio_track = this.my_stream_collection[call.peer].getAudioTracks()[0]
+          audio_track.enabled = false
+        }
+        
       })
     },
 
@@ -241,7 +254,7 @@ document.addEventListener('alpine:init', () => {
           "peer_name" : this.my_participant_name
         }))
 
-        //  Send camera state if camera is in off state
+        //  Send and set camera state if camera is in off state
         if (!this.camera_state) {
 
           let video_track = this.my_stream_collection[peers_id].getVideoTracks()[0]
@@ -255,7 +268,7 @@ document.addEventListener('alpine:init', () => {
           }))
         }
 
-        //  Send microphone state if microphone is in off state
+        //  Send and set microphone state if microphone is in off state
         if (!this.mic_state) {
 
           let audio_track = this.my_stream_collection[peers_id].getAudioTracks()[0]
@@ -303,9 +316,6 @@ document.addEventListener('alpine:init', () => {
                 //  Send camera state if camera is in off state
                 if (!this.camera_state) {
 
-                  let video_track = this.my_stream_collection[peers_id].getVideoTracks()[0]
-                  video_track.enabled = false
-
                   this_conn.send(JSON.stringify({
                     "type": "state",
                     "participant_id" : this.my_peer_id,
@@ -316,9 +326,6 @@ document.addEventListener('alpine:init', () => {
 
                 //  Send microphone state if microphone is in off state
                 if (!this.mic_state) {
-
-                  let audio_track = this.my_stream_collection[peers_id].getAudioTracks()[0]
-                  audio_track.enabled = false
 
                   this_conn.send(JSON.stringify({
                     "type": "state",
