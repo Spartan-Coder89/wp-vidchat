@@ -2,7 +2,7 @@
 
 /**
  * @package WPVidChat
- * @version 1.7.2
+ * @version 0.1
  */
 /*
 Plugin Name: WP Vidchat
@@ -479,6 +479,14 @@ class WPVidChat
       }
     }
   }
+
+  public function activate() {
+    flush_rewrite_rules();
+  }
 }
 
-new WPVidChat;
+if (class_exists('WPVidChat')) {
+  $wp_vidchat = new WPVidChat;
+}
+
+register_activation_hook(__FILE__, array($wp_vidchat, 'activate'));
