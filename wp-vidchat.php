@@ -1,13 +1,13 @@
 <?php
 
 /**
- * @package Hello_Dolly
+ * @package WPVidChat
  * @version 1.7.2
  */
 /*
 Plugin Name: WP Vidchat
 Plugin URI: https://simonjiloma.com
-Description: Video chat with Peer JS webrtc framework
+Description: Peer to peer, private and secure video chat application
 Author: Simon Jiloma
 Version: 0.1
 Author URI: https://simonjiloma.com
