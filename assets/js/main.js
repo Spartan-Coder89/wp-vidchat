@@ -1459,6 +1459,8 @@ document.addEventListener('alpine:init', () => {
     
     async enlist_media_devices() {
 
+      await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+
       if (document.getElementById('video_input').querySelectorAll('option').length > 0) {
         document.getElementById('video_input').querySelectorAll('option').forEach(option => option.remove())
       }
