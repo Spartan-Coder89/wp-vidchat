@@ -13,6 +13,9 @@ Version: 0.1
 Author URI: https://simonjiloma.com
 */
 
+if (!defined('ABSPATH')) {
+  die;
+}
 
 class WPVidChat 
 {
