@@ -20,6 +20,8 @@ document.addEventListener('alpine:init', () => {
     data_connection_collection : {},
     media_devices_constraints : null,
     current_screen_stream : null,
+    video_monitoring : {},
+    is_speaking : false,
 
     initialize() {
 
@@ -69,6 +71,9 @@ document.addEventListener('alpine:init', () => {
 
         //  Enable disable chat
         this.enable_disable_chat()
+
+        //  Show page load notification
+        this.page_load_info = true
       }
       
       //  Listen for device changes
@@ -92,6 +97,54 @@ document.addEventListener('alpine:init', () => {
 
       //  Initialize group chat storage
       sessionStorage.setItem('vidchat_group_chat', JSON.stringify([]))
+
+      //  Hang up call when on mobile device and tab or browser is inactive for 60 seconds
+      if (this.is_mobile()) {
+
+        let timeout_id = null
+
+        document.addEventListener('visibilitychange', () => {
+
+          if (document.hidden) {
+
+            for (let key in this.data_connection_collection) {
+
+              let conn = this.data_connection_collection[key]
+              conn.send(JSON.stringify({
+                "type": "state",
+                "participant_id" : this.my_peer_id,
+                "component" : "browser_visibility",
+                "state" : false
+              }))
+            }
+
+            timeout_id = setTimeout(() => {
+              if (document.hidden) {
+                this.hang_up()
+              }
+            }, 60000)
+            
+          } else {
+
+            for (let key in this.data_connection_collection) {
+
+              let conn = this.data_connection_collection[key]
+              conn.send(JSON.stringify({
+                "type": "state",
+                "participant_id" : this.my_peer_id,
+                "component" : "browser_visibility",
+                "state" : true
+              }))
+            }
+
+            if (timeout_id) {
+              clearTimeout(timeout_id)
+            }
+          }
+        })
+
+        // this.check_has_back_camera()
+      }
     },
 
     create_id() { 
@@ -130,6 +183,8 @@ document.addEventListener('alpine:init', () => {
 
     async join_meeting() {
 
+      this.page_load_info = false
+
       if (document.getElementById('video_input').value === '') {
         alert('No video input device found. Please check you have camera and is plugged in.')
         return
@@ -158,10 +213,15 @@ document.addEventListener('alpine:init', () => {
       //  Setup media devices to use
       this.media_devices_constraints = {
         video: {
-          deviceId: { exact: document.getElementById('video_input').value }
+          deviceId: { exact: document.getElementById('video_input').value },
+          width: { exact: 640 },
+          height: { exact: 480 }
         },
         audio: {
-          deviceId: { exact: document.getElementById('audio_input').value }
+          deviceId: { exact: document.getElementById('audio_input').value },
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
         }
       }
 
@@ -190,10 +250,14 @@ document.addEventListener('alpine:init', () => {
               this.call(peer_id, this.my_stream)
             });
           }
+
+          //  Start monitoring videos
+          this.monitor_videos()
         }
 
         if (data.status && data.status === 'error') {
           console.log('Error: '+ data.error_message)
+          alert(`There's been an error connecting to the room. Please reload the page and try again.`)
         }
       })
 
@@ -293,6 +357,8 @@ document.addEventListener('alpine:init', () => {
         let peers_id = conn.peer
 
         conn.on('data', (data) => {
+
+          console.log(data)
 
           if (typeof data === 'string' && data !== null) {
 
@@ -424,6 +490,10 @@ document.addEventListener('alpine:init', () => {
                 let style = json_data.state ? 'display:none;' : 'display:block;'
                 document.querySelector('#peer-'+ json_data.participant_id +' .media_indicators .mic_off').style = style
 
+              } else if (json_data.component === 'browser_visibility') {
+                let style = json_data.state ? 'display:none;' : 'display:flex;'
+                document.querySelector('#peer-'+ json_data.participant_id +' .user_inactive').style = style
+
               } else {
                 //  Do nothing
               }
@@ -531,6 +601,7 @@ document.addEventListener('alpine:init', () => {
       let my_stream_collection = this.my_stream_collection
       let data_connection_collection = this.data_connection_collection
       let chat_channel = this.chat_channel
+      let video_monitoring = this.video_monitoring
       let relayout_videos = () => { this.relayout_videos() }
       let enable_disable_chat = () => { this.enable_disable_chat() }
       let fullscreen_state_to_false = () => { this.fullscreen_state = false }
@@ -574,8 +645,13 @@ document.addEventListener('alpine:init', () => {
               </defs>
             </svg>
           </div>
+          <div class="user_inactive" style="display:none;">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M20 6.66663C21.7681 6.66663 23.4638 7.369 24.714 8.61925C25.9643 9.86949 26.6666 11.5652 26.6666 13.3333C26.6666 16.3997 24.5894 18.9914 21.7649 19.7643C21.446 19.8516 21.1101 19.7434 20.8763 19.5096L13.8248 12.4581C13.5904 12.2237 13.4823 11.8868 13.5703 11.5672C13.933 10.2508 14.6923 9.07286 15.7511 8.19731C16.9464 7.20878 18.4488 6.66754 20 6.66663ZM20.4666 23.3333L30.4666 33.3333L32.629 35.4956C33.0184 35.8851 33.0196 36.5161 32.6317 36.9071L31.9237 37.6206C31.5337 38.0138 30.8984 38.015 30.5067 37.6234L26.5095 33.6262C26.322 33.4386 26.0676 33.3333 25.8024 33.3333H7.66663C7.11435 33.3333 6.66663 32.8856 6.66663 32.3333V30C6.66663 27.3053 9.88369 24.9838 14.4747 23.9288C15.2793 23.7439 15.6136 22.7303 15.0299 22.1465L5.34041 12.4571C4.94988 12.0665 4.94988 11.4334 5.34041 11.0429L6.04329 10.34C6.43365 9.94961 7.06648 9.94942 7.45707 10.3395L20.4666 23.3333ZM33.3333 30V30C33.3333 30.7257 32.4558 31.0892 31.9427 30.576L27.6235 26.2568C26.9192 25.5526 27.5426 24.4693 28.4638 24.8481C31.4387 26.0714 33.3333 27.9267 33.3333 30Z" fill="#E3EEFF"/>
+            </svg>
+          </div>
           <div class="video_wrap">
-            <video id="`+ video_id +`" autoplay playsinline></video>
+            <video id="`+ video_id +`" data-peer_id="${peer}" autoplay playsinline></video>
           </div>`
     
           document.getElementById('participants_wrap').append(participant)
@@ -586,6 +662,14 @@ document.addEventListener('alpine:init', () => {
           relayout_videos()
           enable_disable_chat()
 
+          video_monitoring[peer] = {
+            "minutes_stuck" : 0,
+            "previous_time" : 0,
+            "current_time" : 0
+          }
+
+          document.getElementById('local_stream').muted = true // Mute local video when peers are present
+
           call.on('close', () => {
 
             //  Remove from collections objects that are related to the closed connection peer
@@ -593,6 +677,7 @@ document.addEventListener('alpine:init', () => {
             delete media_connection_collection[peer_id]
             delete my_stream_collection[peer_id]
             delete data_connection_collection[peer_id]
+            delete video_monitoring[peer_id]
 
             // Remove peer's video element
             document.getElementById(video_id).parentElement.parentElement.remove()
@@ -621,6 +706,10 @@ document.addEventListener('alpine:init', () => {
             //  Relayout and enable/disable chat
             relayout_videos()
             enable_disable_chat()
+
+            if (Object.keys(video_monitoring).length === 0) {
+              document.getElementById('local_stream').muted = false
+            }
           })
         }
       })
@@ -740,9 +829,19 @@ document.addEventListener('alpine:init', () => {
 
         const files = e.dataTransfer.files
         const chat_id = e.target.dataset.chat_id
+        const maxsize = 25 * 1024 * 1024  // 25MB Limit
         
         if (files.length > 0) {
 
+          //  Check for sizes
+          for (let i=0; i < files.length; i++) {
+            if (files[i].size > maxsize) {
+              alert('Maximum of 25mb is the file size allowed for sending. Please check the file size of the items before sending.')
+              return
+            }
+          }
+
+          //  Start sending files
           for (let i=0; i < files.length; i++) {
 
             const fileReader = new FileReader()
@@ -949,8 +1048,17 @@ document.addEventListener('alpine:init', () => {
 
       const files = document.getElementById('input_files').files
       const chat_id = event.target.dataset.chat_id
+      const maxsize = 25 * 1024 * 1024  // 25MB Limit
 
       if (files.length > 0) {
+
+        //  Check for sizes
+        for (let i=0; i < files.length; i++) {
+          if (files[i].size > maxsize) {
+            alert('Maximum of 25mb is the file size allowed for sending. Please check the file size of the items before sending.')
+            return
+          }
+        }
 
         if (chat_id === 'group') {
 
@@ -1194,6 +1302,97 @@ document.addEventListener('alpine:init', () => {
       }
     },
 
+    monitor_videos() {
+
+      setInterval(() => {
+
+        document.querySelectorAll('.participant video').forEach(video => {
+
+          if (video.id !== 'local_stream') {
+
+            let peer_id = video.dataset.peer_id
+
+            //  Assign values
+            this.video_monitoring[peer_id].previous_time = this.video_monitoring[peer_id].current_time
+            this.video_monitoring[peer_id].current_time = video.currentTime
+
+            //  Count the minutes if the video is not playing (Assumed interval is every 30 seconds)
+            if (this.video_monitoring[peer_id].previous_time === this.video_monitoring[peer_id].current_time) {
+              this.video_monitoring[peer_id].minutes_stuck = this.video_monitoring[peer_id].minutes_stuck + 0.5
+            } else {
+              this.video_monitoring[peer_id].minutes_stuck = 0
+            }
+
+            //  Check if video is past or equal to the alloted minutes not playing
+            if (this.video_monitoring[peer_id].minutes_stuck >= 1.5) {
+              
+              //  Remove from collections objects that are related to the closed connection peer
+              delete this.media_connection_collection[peer_id]
+              delete this.my_stream_collection[peer_id]
+              delete this.data_connection_collection[peer_id]
+              delete this.video_monitoring[peer_id]
+
+              // Remove peer's video element
+              video.parentElement.parentElement.remove()
+
+              //  Set peer's chat messages view to group if the closed connection was in view
+              if (this.chat_channel[peer_id].state) {
+                this.chat_channel[peer_id].state = false
+                this.chat_channel['group'].state = true
+              }
+
+              // Update chat channel dropdown
+              this.update_chat_channel_dropdown(peer_id)
+
+              //  Check if only one particpant and in fullscreen mode
+              let participants = document.querySelectorAll('.participant')
+              if (participants.length === 1) {
+                
+                this.fullscreen_state = false
+                document.getElementById('participants_wrap').classList.remove('in_fullscreen')
+
+                if (participants[0].classList.contains('fullscreen')) {
+                  participants[0].classList.remove('fullscreen')
+                }
+              }
+
+              //  Relayout and enable/disable chat
+              this.relayout_videos()
+              this.enable_disable_chat()
+
+              if (Object.keys(this.video_monitoring).length === 0) {
+                document.getElementById('local_stream').muted = false
+              }
+            }
+          }
+
+        })
+
+      }, 30000)
+    },
+
+    is_mobile() {
+
+      const user_agent = navigator.userAgent;
+
+      // Checks for iOS devices
+      if (/iPhone|iPad|iPod/i.test(user_agent)) {
+        return true;
+      }
+  
+      // Checks for Android devices
+      if (/Android/i.test(user_agent)) {
+        return true;
+      }
+  
+      // Checks for other mobile devices
+      if (/Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(user_agent)) {
+        return true;
+      }
+  
+      return false;
+    },
+
     /**
      * =================================== User Interface =================================== 
      */
@@ -1204,12 +1403,15 @@ document.addEventListener('alpine:init', () => {
     before_call_settings_content : true,
     in_call_settings_content : false,
     in_call_chat_content : false,
+    in_call_howto_content : false,
     my_participant_name : '', 
     show_enter_name_modal : false,
-    has_back_camera: false,
-    is_back_camera_on : false,
+    // has_back_camera: false,
+    // back_camera_on : false,
+    // back_camera_device_id : null,
     hanging_up : false,
     go_to_room : '',
+    page_load_info : false,
 
     camera_state : true,
     mic_state : true,
@@ -1248,12 +1450,14 @@ document.addEventListener('alpine:init', () => {
         this.before_call_settings_content = false
         this.in_call_settings_content = true
         this.in_call_chat_content = true
+        this.in_call_howto_content = true
 
       } else {
         this.before_call_icon_content = true
         this.before_call_settings_content = true
         this.in_call_settings_content = false
         this.in_call_chat_content = false
+        this.in_call_howto_content = false
       }
     },
 
@@ -1272,6 +1476,7 @@ document.addEventListener('alpine:init', () => {
       }
 
       this.show_enter_name_modal = false
+      this.page_load_info = false
     },
 
     toggle_invite_participant_state() {
@@ -1329,10 +1534,6 @@ document.addEventListener('alpine:init', () => {
       if (this.call_settings_menu_state) {
         this.chatbox_state = false
       }
-    },
-
-    toggle_back_camera() {
-      //  logic here
     },
 
     toggle_camera(state = null) {
@@ -1422,6 +1623,76 @@ document.addEventListener('alpine:init', () => {
         this.screenshare()
       }
     },
+
+    // async toggle_back_camera() {
+      
+    //   this.back_camera_on = !this.back_camera_on
+
+    //   if (this.back_camera_on) {
+
+    //     if (this.has_back_camera && this.back_camera_device_id) {
+
+    //       // this.media_devices_constraints.video.deviceId.exact = this.back_camera_device_id
+
+    //       const back_camera_constraints = {
+    //         video: {
+    //             width: { ideal: 640 }, // Ideal width in pixels
+    //             height: { ideal: 480 }, // Ideal height in pixels
+    //             frameRate: { ideal: 30 }, // Ideal frame rate in frames per second
+    //             facingMode: "environment" // "user" for front camera, "environment" for back camera
+    //         },
+    //         audio: {
+    //             echoCancellation: true, // Reduce echo
+    //             noiseSuppression: true, // Suppress background noise
+    //             autoGainControl: true   // Automatically control gain
+    //         }
+    //       }
+
+    //       const back_camera_stream = await navigator.mediaDevices.getUserMedia(back_camera_constraints)
+    //       const back_camera_stream_videotracks = back_camera_stream.getVideoTracks()[0]
+  
+    //       // Replace video track with screen track
+    //       for (const key in this.media_connection_collection) {
+    //         let peer = this.media_connection_collection[key].peerConnection.getSenders().find(s => s.track.kind === back_camera_stream_videotracks.kind) //  This here is a track finder
+    //         peer.replaceTrack(back_camera_stream_videotracks)
+    //       }
+    //     }
+
+    //   } else {
+
+    //     const my_stream_videotracks = this.my_stream.getVideoTracks()[0]
+
+    //     // Replace video track with screen track
+    //     for (const key in this.media_connection_collection) {
+    //       let peer = this.media_connection_collection[key].peerConnection.getSenders().find(s => s.track.kind === my_stream_videotracks.kind) //  This here is a track finder
+    //       peer.replaceTrack(my_stream_videotracks)
+    //     }
+    //   }
+    // },
+
+    // async check_has_back_camera() {
+
+    //   let media_devices = await navigator.mediaDevices.enumerateDevices()
+
+    //   for (const key in media_devices) {
+
+    //     if (media_devices[key].kind === 'videoinput') {
+
+    //       if (media_devices[key].label.toLowerCase().includes('back')) {
+
+    //         console.log(media_devices[key].label)
+    //         console.log(media_devices[key].deviceId)
+
+    //         this.back_camera_device_id = media_devices[key].deviceId
+    //         this.has_back_camera = true
+    //         break
+    //       }
+    //     }
+    //   }
+
+    //   console.log(media_devices)
+    //   console.log(this.back_camera_device_id)
+    // },
 
     toggle_fullscreen(element_id) {
 
@@ -1668,6 +1939,10 @@ document.addEventListener('alpine:init', () => {
         this.info_how_to_modal_state.info = false
         this.info_how_to_modal_state.how_to = true
       }
+    },
+
+    close_page_load_info() {
+      this.page_load_info = false
     }
   }))
 

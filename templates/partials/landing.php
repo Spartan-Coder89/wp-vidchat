@@ -108,7 +108,7 @@
       </li>
       <li>
         <p class="title">IN CALL: SENDING FILES</p>
-        <p>In call, click on the chat button on the right side of the screen to toggle the chat window. You can drag the files you want to send to the chat window and drop to send or click on the file icon on the text area to open and select the files you want to send.</p>
+        <p>In call, click on the chat button on the right side of the screen to toggle the chat window. You can drag the files you want to send onto the textarea or click on the file icon on the text area to open and select the files you want to send.</p>
       </li>
     </ul>
   </div>
