@@ -2,14 +2,14 @@
 
 /**
  * @package WPVidChat
- * @version 0.2
+ * @version 0.3
  */
 /*
 Plugin Name: WP Vidchat
 Plugin URI: https://simonjiloma.com
 Description: Peer to peer, private and secure video chat application
 Author: Simon Jiloma
-Version: 0.1
+Version: 0.3
 Author URI: https://simonjiloma.com
 */
 
@@ -24,7 +24,8 @@ class WPVidChat
 
     add_action('init', function() {
 
-      $this->room_cleanup(); // Delete rooms that are past time limit
+      // Delete rooms that are past time limit
+      $this->room_cleanup();
 
       if (is_null(get_page_by_path('vidchat'))) {
 
@@ -82,10 +83,10 @@ class WPVidChat
           exit;
         }
 
-        $vidchat = get_option('vidchat');
+        $room_check = $this->check_room_exists($_GET['meeting-id']);
 
         //  Check if room exists
-        if (!isset($vidchat[$_GET['meeting-id']])) {
+        if (!$room_check) {
           wp_safe_redirect(get_site_url() .'/vidchat?error='. urlencode('Meeting room does not exist. Either you have the wrong link or this meeting room is expired. Meeting rooms are valid for 12 hours only. Please check your link if this room is not yet past its expiration.'));
           exit;
         }
@@ -180,25 +181,28 @@ class WPVidChat
       exit;
     }
 
+    global $wpdb;
     $meeting_id = $request['meeting_id'];
 
-    $vidchat = get_option('vidchat');
-    $vidchat[$meeting_id]['date_created'] = date('Y-m-d H:i:s');
-    $vidchat[$meeting_id]['peers'] = [];
-    $result = update_option('vidchat', $vidchat);
+    $result = $wpdb->insert(
+      $wpdb->prefix . 'vidchat_meeting_rooms',
+      [
+        'meeting_id' => $meeting_id,
+        'date_created' => date('Y-m-d H:i:s')
+      ]
+    );
 
-    if ($result === false) {
+    header('Content-Type: application/json');
 
-      header('Content-Type: application/json');
-      echo wp_json_encode([
-        'status' => 'error',
-        'error_message' => 'Somethin went wrong in saving your meeting id'
-      ]);
-      exit;
-
-    } else {
+    if ($result !== false) {
       echo wp_json_encode(['status' => 'success']);
       exit;
+    
+    } else {
+      echo wp_json_encode([
+        'status' => 'error',
+        'error_message' => 'Something went wrong in saving your meeting id'
+      ]);
     }
   }
 
@@ -234,69 +238,89 @@ class WPVidChat
       exit;
     }
 
-    $vidchat = get_option('vidchat');
-    $vidchat[$request['meeting_id']]['peers'][$request['my_participant_id']] = $request['my_peer_id'];
+    $peer_id = $request['my_peer_id'];
+    $participant_id = $request['my_participant_id'];
+    $meeting_id = $request['meeting_id'];
 
-    //  If the option value will be updated with the same value
-    //  skip the update and respond
-    if (get_option('vidchat') === $vidchat) {
+    global $wpdb;
 
-      $vidchat = get_option('vidchat');
-      $peers = $vidchat[$request['meeting_id']]['peers'];
-      unset($peers[$request['my_participant_id']]); //  Remove my participant id to correct http response
-
-      header('Content-Type: application/json');
-      echo wp_json_encode([ 
-        'status' => 'success',
-        'my_peers' => $peers
-      ]);
-      exit;
-    }
-
-    //  Update the vidchat option with the new participant
-    $result = update_option('vidchat', $vidchat);
-    if ($result) {
-
-      $vidchat = get_option('vidchat');
-      $peers = $vidchat[$request['meeting_id']]['peers'];
-      unset($peers[$request['my_participant_id']]); //  Remove my participant id to correct http response
-
-      header('Content-Type: application/json');
-      echo wp_json_encode([ 
-        'status' => 'success',
-        'my_peers' => $peers
-      ]);
-      exit;
+    $tablename = $wpdb->prefix . 'vidchat_peers';
+    $check_peer_existing = $wpdb->get_row("SELECT participant_id FROM $tablename WHERE participant_id = '$participant_id'");
+    
+    //  Update or insert peer
+    if (isset($check_peer_existing->participant_id)) {
+      $results = $wpdb->update($tablename, 
+      [
+        'peer_id' => $peer_id,
+        'meeting_id' => $meeting_id
+      ], 
+      ['participant_id' => $participant_id]);
 
     } else {
-      header('Content-Type: application/json');
+      $results = $wpdb->insert($tablename, [
+        'participant_id' => $participant_id, 
+        'peer_id' => $peer_id,
+        'meeting_id' => $meeting_id
+      ]);
+    }
+
+    //  Get all peers
+    $return_peers = [];
+    $all_peers = $wpdb->get_results("SELECT * FROM $tablename", ARRAY_A);
+
+    if (!is_null($all_peers)) {
+      foreach ($all_peers as $key => $peer) {
+        if ($peer['peer_id'] !== $peer_id) {
+          $return_peers[$peer['participant_id']] = $peer['peer_id'];
+        }
+      }
+    }
+
+    header('Content-Type: application/json');
+
+    if ($results !== false) {
+      echo wp_json_encode([ 
+        'status' => 'success',
+        'my_peers' => $return_peers
+      ]);
+
+    } else {
       echo wp_json_encode([
         'status' => 'error',
-        'error_message' => 'Cannot save your peer id',
-        'vidchat_option' => get_option('vidchat'),
-        'error' => $result
+        'error_message' => 'Cannot save your peer id'
       ]);
-      exit;
     }
+
+    exit;
   }
 
   public function remove_participant( WP_REST_Request $request ) {
 
-    $vidchat = get_option('vidchat');
-    unset($vidchat[$request['meeting_id']]['peers'][$request['my_participant_id']]);
+    if (!isset($request['my_participant_id']) or empty($request['my_participant_id'])) {
 
-    $result = update_option('vidchat', $vidchat);
-
-    if ($result) {
       header('Content-Type: application/json');
-      echo wp_json_encode([ 'status' => 'success' ]);
-      exit;
-
-    } else {
-      header('Content-Type: application/json');
-      echo wp_json_encode([ 'status' => 'error', 'error_message' => 'Cannot remove your peer id.' ]);
+      echo wp_json_encode([
+        'status' => 'error',
+        'error_message' => 'Your participant ID is required'
+      ]);
       exit;
     }
+
+    global $wpdb;
+    $participant_id = $request['my_participant_id'];
+    $tablename = $wpdb->prefix . 'vidchat_peers';
+
+    $delete_participant = $wpdb->delete($tablename, ['participant_id' => $participant_id]);
+
+    header('Content-Type: application/json');
+
+    if ($delete_participant !== false) {
+      echo wp_json_encode([ 'status' => 'success' ]);
+    } else {
+      echo wp_json_encode([ 'status' => 'error', 'error_message' => 'Cannot remove your peer id.' ]);
+    }
+
+    exit;
   }
 
   public function invite_participant( WP_REST_Request $request ) {
@@ -462,26 +486,71 @@ class WPVidChat
 
   public function room_cleanup() {
 
-    $vidchat = get_option('vidchat');
+    $time_limit = 43200; // 12 hours
+    $rooms_to_delete = [];
 
-    foreach ($vidchat as $key => $room) {
+    global $wpdb;
+    $tablename = $wpdb->prefix . 'vidchat_meeting_rooms';
+    $rooms = $wpdb->get_results("SELECT * FROM $tablename", ARRAY_A);
+
+    //  Collect rooms that need to be deleted
+    foreach ($rooms as $key => $room) {
 
       $room_timestamp = strtotime($room['date_created']);
       $current_timestamp = time();
-      $time_limit = 43200; // 12 hours
-    
       $time_difference = $current_timestamp - $room_timestamp;
-    
-      //  Remove room if past time limit
+
       if ($time_difference >= $time_limit) {
-        unset($vidchat[$key]);
-        update_option('vidchat', $vidchat);
+        $rooms_to_delete[] = $room['meeting_id'];
+      }
+    }
+
+    //  Delete rooms and users in that room
+    if (!empty($rooms_to_delete)) {
+      foreach ($rooms_to_delete as $key => $meeting_id) {
+        $wpdb->delete($wpdb->prefix . 'vidchat_meeting_rooms', ['meeting_id' => $meeting_id]);
+        $wpdb->delete($wpdb->prefix . 'vidchat_peers', ['meeting_id' => $meeting_id]);
       }
     }
   }
 
+  public function check_room_exists($meeting_id) {
+    
+    global $wpdb;
+
+    $tablename = $wpdb->prefix . 'vidchat_meeting_rooms';
+    $rows = $wpdb->get_row("SELECT meeting_id FROM $tablename WHERE meeting_id = '$meeting_id'");
+
+    return isset($rows->meeting_id) ? true : false;
+  }
+
   public function activate() {
+
     flush_rewrite_rules();
+
+    global $wpdb;
+
+    $meeting_rooms_table_name = $wpdb->prefix . 'vidchat_meeting_rooms';
+    $vidchat_peers_table_name = $wpdb->prefix . 'vidchat_peers';
+    $charset_collate = $wpdb->get_charset_collate();
+
+    $meeting_rooms_sql = "CREATE TABLE IF NOT EXISTS $meeting_rooms_table_name (
+        meeting_id VARCHAR(255) NOT NULL,
+        date_created datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        PRIMARY KEY (meeting_id)
+    ) $charset_collate;";
+
+    $peers_sql = "CREATE TABLE IF NOT EXISTS $vidchat_peers_table_name (
+      participant_id VARCHAR(255) NOT NULL,
+      peer_id VARCHAR(255) NOT NULL,
+      meeting_id VARCHAR(255) NOT NULL,
+      PRIMARY KEY (participant_id)
+    ) $charset_collate;";
+
+    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+
+    dbDelta($meeting_rooms_sql);
+    dbDelta($peers_sql);
   }
 }
 

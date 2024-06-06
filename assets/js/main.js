@@ -358,8 +358,6 @@ document.addEventListener('alpine:init', () => {
 
         conn.on('data', (data) => {
 
-          console.log(data)
-
           if (typeof data === 'string' && data !== null) {
 
             let json_data = JSON.parse(data)
@@ -735,8 +733,6 @@ document.addEventListener('alpine:init', () => {
         chat_messages_wrap.innerHTML = `<p class="no_convo">No conversation yet</p>`
 
         document.getElementById('chat_peers').insertAdjacentElement('afterend', chat_messages_wrap)
-
-        this.add_drag_drop_capability(chat_messages_wrap)
       }
 
       //  Append to channel selection

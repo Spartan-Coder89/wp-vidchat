@@ -11,12 +11,3 @@
 </main>
 
 <?php include 'footer-vidchat.php';
-
-
-// echo '<pre>';
-// print_r(update_option('vidchat', []));
-// echo '</pre>';
-
-// echo '<pre>';
-// print_r(get_option('vidchat'));
-// echo '</pre>';
