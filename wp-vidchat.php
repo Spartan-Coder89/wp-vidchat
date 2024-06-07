@@ -94,12 +94,6 @@ class WPVidChat
     });
 
     add_action('rest_api_init', function() {
-      
-      register_rest_route('vidchat/v1', '/check-room', array(
-        'methods' => 'GET',
-        'permission_callback' => '__return_true',
-        'callback' => array($this, 'check_room')
-      ));
 
       register_rest_route('vidchat/v1', '/create-meeting', array(
         'methods' => 'POST',
@@ -127,46 +121,6 @@ class WPVidChat
 
     });
     
-  }
-
-  public function check_room( WP_REST_Request $request ) {
-
-    if (!isset($request['room_id']) or empty($request['room_id'])) {
-      
-      header('Content-Type: application/json');
-      echo wp_json_encode([
-        'status' => 'success',
-        'room_exists' => false,
-        'return' => 1,
-        'room_id' => $request['room_id']
-      ]);
-      exit;
-    }
-
-    $vidchat = get_option('vidchat');
-
-    if (isset($vidchat[$request['room_id']])) {
-
-      header('Content-Type: application/json');
-      echo wp_json_encode([
-        'status' => 'success',
-        'room_exists' => true,
-        'return' => 2,
-        'room_id' => $request['room_id']
-      ]);
-      exit;
-
-    } else {
-
-      header('Content-Type: application/json');
-      echo wp_json_encode([
-        'status' => 'success',
-        'room_exists' => false,
-        'return' => 3,
-        'room_id' => $request['room_id']
-      ]);
-      exit;
-    }
   }
 
   public function create_meeting( WP_REST_Request $request ) {
