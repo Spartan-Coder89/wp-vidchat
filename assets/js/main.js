@@ -239,6 +239,8 @@ document.addEventListener('alpine:init', () => {
       })
       .then(data => {
 
+        console.log(data)
+
         if (data.status && data.status === 'success') {
 
           this.entering_room = false

@@ -266,7 +266,7 @@ class WPVidChat
 
     //  Get all peers
     $return_peers = [];
-    $all_peers = $wpdb->get_results("SELECT * FROM $tablename", ARRAY_A);
+    $all_peers = $wpdb->get_results("SELECT * FROM $tablename WHERE meeting_id = '$meeting_id'", ARRAY_A);
 
     if (!is_null($all_peers)) {
       foreach ($all_peers as $key => $peer) {
