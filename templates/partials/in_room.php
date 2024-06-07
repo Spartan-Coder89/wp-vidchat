@@ -521,11 +521,11 @@
     </div>
     <p>
       In order to use this application, please allow permission for this application to use the camera and microphone. To do so, 
-      please click allow when the application prompts as seen in the screenshot.
+      please click allow when the application prompts as seen in the screenshot below.
     </p>
     <img src="<?php echo plugins_url('wp-vidchat/assets/images/In-room-screenshot-permission.jpg') ?>" alt="">
     <p>
-      If camera and microphone permissions are already allowed please ignore this notification.
+      If the camera and microphone permissions are already allowed please ignore this notification.
       This video chat application is best used with chrome or firefox browser.
     </p>
   </div>

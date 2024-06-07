@@ -3282,6 +3282,8 @@ main {
   }
   
   #page_load_info .title svg {
+    width: 5.172vw;
+    height: 5.172vw;
     margin-right: 1.724vw;
   }
   
