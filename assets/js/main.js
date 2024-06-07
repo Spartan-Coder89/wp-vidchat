@@ -1939,6 +1939,12 @@ document.addEventListener('alpine:init', () => {
 
     close_page_load_info() {
       this.page_load_info = false
+    },
+
+    show_page_load_info() {
+      setTimeout(() => {
+        document.getElementById('page_load_info').classList.add('show')
+      }, 150)
     }
   }))
 
