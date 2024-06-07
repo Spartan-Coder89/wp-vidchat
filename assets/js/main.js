@@ -24,7 +24,7 @@ document.addEventListener('alpine:init', () => {
     is_speaking : false,
 
     initialize() {
-
+      
       let url_params = new URLSearchParams(window.location.search)
 
       if (url_params.get('error')) {
@@ -142,7 +142,7 @@ document.addEventListener('alpine:init', () => {
             }
           }
         })
-
+        
         // this.check_has_back_camera()
       }
     },
@@ -238,8 +238,6 @@ document.addEventListener('alpine:init', () => {
         }
       })
       .then(data => {
-
-        console.log(data)
 
         if (data.status && data.status === 'success') {
 
