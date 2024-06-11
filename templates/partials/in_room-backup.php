@@ -365,20 +365,27 @@
       <div id="chat_peers">
         <p>Select Chat Channel:</p>
         <div id="chat_channel">
-          <div id="channel_name" @click="chat_channel_state = !chat_channel_state">----</div>
+          <div id="channel_name" @click="chat_channel_state = !chat_channel_state">Group</div>
           <div class="arrow_down"></div>
-          <div id="channels" x-cloak x-show="chat_channel_state">
-            <div class="chat_channel" style="pointer-events:none;" data-name="----" data-value="----" 
-              @click="set_chat_channel(event)">
-              ----
-            </div>
+          <div id="channels" 
+            x-cloak
+            x-show="chat_channel_state">
+            <div class="chat_channel" data-name="Group" data-value="group" 
+              :class="{has_new_message : check_has_new_message('group')}"
+              @click="set_chat_channel(event)">Group</div>
           </div>
-          <input type="hidden" id="chat_channel_value" value="----">
+          <input type="hidden" id="chat_channel_value" value="group">
         </div>
       </div>
 
+      <div id="group_chat" class="chat_messages_wrap empty" data-chat_id="group"
+        x-cloak
+        x-show="chat_channel['group'].state">
+        <p class="no_convo">No conversation yet</p>
+      </div>
+
       <div id="chat_input_box">
-        <textarea id="chat_input" data-chat_id="----" ></textarea>
+        <textarea id="chat_input" data-chat_id="group"></textarea>
         <button id="send_files" type="button" title="Send Files"
           @click="document.getElementById('input_files').click()">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -407,7 +414,6 @@
           </svg>
         </button>
       </div>
-
     </div>
 
     <button type="button" id="chat_message" class="action_button" title="Toggle Chat"

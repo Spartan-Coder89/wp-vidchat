@@ -65,7 +65,8 @@ document.addEventListener('alpine:init', () => {
         //  Add available input devices on device option
         this.enlist_media_devices()
 
-        //  Add drag and drop capability to chat input
+        //  Add drag and drop capability to group chat view
+        // this.add_drag_drop_capability(document.getElementById('group_chat'))
         this.add_drag_drop_capability(document.getElementById('chat_input'))
 
         //  Enable disable chat
@@ -93,6 +94,9 @@ document.addEventListener('alpine:init', () => {
           body : post_data
         })
       })
+
+      //  Initialize group chat storage
+      sessionStorage.setItem('vidchat_group_chat', JSON.stringify([]))
 
       //  Hang up call when on mobile device and tab or browser is inactive for 60 seconds
       if (this.is_mobile()) {
@@ -394,7 +398,78 @@ document.addEventListener('alpine:init', () => {
                     "state" : this.mic_state
                   }))
                 }
+
+                //  Send group chat storage
+                this_conn.send(JSON.stringify({
+                  "type": "group_chat_storage",
+                  "participant_id" : this.my_peer_id,
+                  "data" : sessionStorage.getItem('vidchat_group_chat')
+                }))
               })
+            }
+
+            //  Check if group chat session storage sent is updated than own session storage
+            if (json_data.type === 'group_chat_storage') {
+
+              const group_chat_storage = json_data.data
+
+              if (JSON.parse(group_chat_storage).length > JSON.parse(sessionStorage.getItem('vidchat_group_chat')).length) {
+
+                sessionStorage.setItem('vidchat_group_chat', group_chat_storage) // Update group chat storage
+              
+                if (JSON.parse(sessionStorage.getItem('vidchat_group_chat')).length > 0) {
+
+                  //  Check if there are existing messages then remove if any
+                  const group_chat_messages = document.querySelectorAll('#group_chat .participant_message')
+                  if (group_chat_messages.length > 0) {
+                    group_chat_messages.forEach(participant_message => {
+                      participant_message.remove()
+                    })
+                  }
+
+                  //  Start adding messages to group chat
+                  const vidchat_group_chat = JSON.parse(sessionStorage.getItem('vidchat_group_chat'))
+                  for (const key in vidchat_group_chat) {
+                    
+                    if (vidchat_group_chat[key].type === 'file-group') {
+
+                      let owner = vidchat_group_chat[key].participant_id === this.my_participant_id ? 'mine' : 'not_mine'
+
+                      let message_participant_name = vidchat_group_chat[key].name
+                      let message_id = 'message_'+ this.create_id()
+  
+                      let target_chat_messages_wrap = document.getElementById('group_chat')
+                      if (target_chat_messages_wrap.classList.contains('empty')) {
+                        target_chat_messages_wrap.classList.remove('empty')
+                        target_chat_messages_wrap.querySelector('.no_convo').remove()
+                      }
+  
+                      //  Append message to chat box
+                      let participant_message = this.create_file_message_html(message_id, owner, message_participant_name, vidchat_group_chat[key].filename, this.base64_to_arraybuffer(vidchat_group_chat[key].data))
+                      target_chat_messages_wrap.append(participant_message)
+                      document.querySelector(`#${message_id} .message`).classList.add('appended')
+  
+                    } else {
+
+                      let owner = vidchat_group_chat[key].participant_id === this.my_participant_id ? 'mine' : 'not_mine'
+
+                      let message_participant_name = vidchat_group_chat[key].name
+                      let message_id = 'message_'+ this.create_id()
+  
+                      let target_chat_messages_wrap = document.getElementById('group_chat')
+                      if (target_chat_messages_wrap.classList.contains('empty')) {
+                        target_chat_messages_wrap.classList.remove('empty')
+                        target_chat_messages_wrap.querySelector('.no_convo').remove()
+                      }
+  
+                      //  Append message to chat box
+                      let participant_message = this.create_message_html(message_id, owner, message_participant_name, vidchat_group_chat[key].message)
+                      target_chat_messages_wrap.append(participant_message)
+                      document.querySelector(`#${message_id} .message`).classList.add('appended')
+                    }
+                  }
+                }
+              }
             }
   
             //  Setup chat view
@@ -423,12 +498,12 @@ document.addEventListener('alpine:init', () => {
             }
   
             //  Add chat messages to chat messages view
-            if (json_data.type && json_data.type === 'message') {
+            if (json_data.type && (json_data.type === 'message' || json_data.type === 'message-group')) {
   
               let message_participant_name = this.chat_channel[json_data.from].name
               let message_id = 'message_'+ this.create_id()
   
-              let target_chat_messages_wrap = document.getElementById('chat_messages_'+ json_data.from)
+              let target_chat_messages_wrap = json_data.type === 'message-group' ? document.getElementById('group_chat') : document.getElementById('chat_messages_'+ json_data.from)
   
               if (target_chat_messages_wrap.classList.contains('empty')) {
                 target_chat_messages_wrap.classList.remove('empty')
@@ -449,8 +524,19 @@ document.addEventListener('alpine:init', () => {
 
               //  Add notification indicator
               if (!this.chat_channel[json_data.from].state || !this.chatbox_state) {
-                this.chat_channel[json_data.from].has_new_message = true
+
+                if (json_data.type === 'message-group') {
+                  this.chat_channel.group.has_new_message = true
+                } else {
+                  this.chat_channel[json_data.from].has_new_message = true
+                }
+                
                 this.check_all_peers_for_new_message()
+              } 
+              
+              //  Update group message storage
+              if (json_data.type === 'message-group') {
+                this.update_group_chat_storage(json_data)
               }
             }
 
@@ -458,12 +544,12 @@ document.addEventListener('alpine:init', () => {
 
             //  IMPORTANT: RAW DATA JSON OBJECT IS TO BE RECIEVED
             //  Recieve file message
-            if (data.type && data.type === 'file') {
+            if (data.type && (data.type === 'file' || data.type === 'file-group')) {
 
               let message_participant_name = this.chat_channel[data.from].name
               let message_id = 'message_'+ this.create_id()
 
-              let target_chat_messages_wrap = document.getElementById('chat_messages_'+ data.from)
+              let target_chat_messages_wrap = data.type === 'file-group' ? document.getElementById('group_chat') : document.getElementById('chat_messages_'+ data.from)
 
               if (target_chat_messages_wrap.classList.contains('empty')) {
                 target_chat_messages_wrap.classList.remove('empty')
@@ -483,8 +569,19 @@ document.addEventListener('alpine:init', () => {
 
               //  Add notification indicator
               if (!this.chat_channel[data.from].state || !this.chatbox_state) {
-                this.chat_channel[data.from].has_new_message = true
+
+                if (data.type === 'file-group') {
+                  this.chat_channel.group.has_new_message = true
+                } else {
+                  this.chat_channel[data.from].has_new_message = true
+                }
+
                 this.check_all_peers_for_new_message()
+              }
+
+              //  Update group message storage
+              if (data.type === 'file-group') {
+                this.update_group_chat_storage(data, true)
               }
             }
 
@@ -586,6 +683,7 @@ document.addEventListener('alpine:init', () => {
             //  Set peer's chat messages view to group if the closed connection was in view
             if (chat_channel[peer_id].state) {
               chat_channel[peer_id].state = false
+              chat_channel['group'].state = true
             }
 
             // Update chat channel dropdown
@@ -729,10 +827,6 @@ document.addEventListener('alpine:init', () => {
         const chat_id = e.target.dataset.chat_id
         const maxsize = 25 * 1024 * 1024  // 25MB Limit
         
-        if (chat_id === '----') {
-          return
-        }
-
         if (files.length > 0) {
 
           //  Check for sizes
@@ -748,42 +842,94 @@ document.addEventListener('alpine:init', () => {
 
             const fileReader = new FileReader()
 
-            const conn = data_connection_collection[chat_id]
-        
-            fileReader.onload = () => {
+            if (chat_id === 'group') {
 
-              //  IMPORTANT NOTE: RAW DATA SHOULD BE SENT SO THAT FILE READER RESULT OBJECT IS INTACT AND NOT CORRUPTED
-              conn.send({
-                "type": "file",
-                "from": this.my_peer_id,
-                "name": this.my_participant_name,
-                "participant_id" : this.my_participant_id,
-                "filename": files[i].name,
-                "data": fileReader.result
-              })
+              for (const key in data_connection_collection) {
 
-              let message_id = 'message_'+ this.create_id()
-              let target_chat_messages_wrap = document.getElementById('chat_messages_'+ chat_id)
-              
-              if (target_chat_messages_wrap.classList.contains('empty')) {
-                target_chat_messages_wrap.classList.remove('empty')
-                target_chat_messages_wrap.querySelector('.no_convo').remove()
+                const conn = data_connection_collection[key]
+
+                fileReader.onload = () => {
+
+                  let send_data = {
+                    "type": "file-group",
+                    "from": this.my_peer_id,
+                    "name": this.my_participant_name,
+                    "participant_id" : this.my_participant_id,
+                    "filename": files[i].name,
+                    "data": fileReader.result
+                  }
+
+                  //  IMPORTANT NOTE: RAW DATA SHOULD BE SENT SO THAT FILE READER RESULT OBJECT IS INTACT AND NOT CORRUPTED
+                  conn.send(send_data)
+
+                  let message_id = 'message_'+ this.create_id()
+                  let target_chat_messages_wrap = chat_id === 'group' ? document.getElementById('group_chat') : document.getElementById('chat_messages_'+ chat_id)
+                  
+                  if (target_chat_messages_wrap.classList.contains('empty')) {
+                    target_chat_messages_wrap.classList.remove('empty')
+                    target_chat_messages_wrap.querySelector('.no_convo').remove()
+                  }
+            
+                  //  Append message to chat box
+                  let participant_message = this.create_file_message_html(message_id, 'mine', this.my_participant_name, files[i].name, fileReader.result)
+                  target_chat_messages_wrap.append(participant_message)
+            
+                  //  Scroll down the messages wrapper first
+                  target_chat_messages_wrap.scrollTo({ top: target_chat_messages_wrap.offsetHeight })
+            
+                  setTimeout(() => {
+                    document.querySelector(`#${message_id} .message`).classList.add('appended')
+                  }, 500)
+
+                  //  Update group message storage
+                  this.update_group_chat_storage(send_data, true)
+                }
+
+                const blob = new Blob([files[i]])
+                fileReader.readAsArrayBuffer(blob)
               }
-        
-              //  Append message to chat box
-              let participant_message = this.create_file_message_html(message_id, 'mine', this.my_participant_name, files[i].name, fileReader.result)
-              target_chat_messages_wrap.append(participant_message)
-        
-              //  Scroll down the messages wrapper first
-              target_chat_messages_wrap.scrollTo({ top: target_chat_messages_wrap.offsetHeight })
-        
-              setTimeout(() => {
-                document.querySelector(`#${message_id} .message`).classList.add('appended')
-              }, 500)
-            }
 
-            const blob = new Blob([files[i]])
-            fileReader.readAsArrayBuffer(blob)   
+            } else {
+
+              const conn = data_connection_collection[chat_id]
+        
+              fileReader.onload = () => {
+
+                //  IMPORTANT NOTE: RAW DATA SHOULD BE SENT SO THAT FILE READER RESULT OBJECT IS INTACT AND NOT CORRUPTED
+                conn.send({
+                  "type": "file",
+                  "from": this.my_peer_id,
+                  "name": this.my_participant_name,
+                  "participant_id" : this.my_participant_id,
+                  "filename": files[i].name,
+                  "data": fileReader.result
+                })
+
+                let message_id = 'message_'+ this.create_id()
+                let target_chat_messages_wrap = chat_id === 'group' ? document.getElementById('group_chat') : document.getElementById('chat_messages_'+ chat_id)
+                
+                if (target_chat_messages_wrap.classList.contains('empty')) {
+                  target_chat_messages_wrap.classList.remove('empty')
+                  target_chat_messages_wrap.querySelector('.no_convo').remove()
+                }
+          
+                //  Append message to chat box
+                let participant_message = this.create_file_message_html(message_id, 'mine', this.my_participant_name, files[i].name, fileReader.result)
+                target_chat_messages_wrap.append(participant_message)
+          
+                //  Scroll down the messages wrapper first
+                target_chat_messages_wrap.scrollTo({ top: target_chat_messages_wrap.offsetHeight })
+          
+                setTimeout(() => {
+                  document.querySelector(`#${message_id} .message`).classList.add('appended')
+                }, 500)
+              }
+
+              const blob = new Blob([files[i]])
+              fileReader.readAsArrayBuffer(blob)
+            }
+          
+
           }
         }
       })
@@ -839,24 +985,40 @@ document.addEventListener('alpine:init', () => {
       let peers_id = document.getElementById('chat_channel_value').value
       let message = document.getElementById('chat_input').value
 
-      if (peers_id === '----') {
-        document.getElementById('chat_input').value = ''
-        return
+      if (peers_id === 'group') {
+
+        let send_data = {
+          "type" : "message-group",
+          "from" : this.my_peer_id,
+          "name" : this.my_participant_name,
+          "participant_id" : this.my_participant_id,
+          "message" : message
+        }
+
+        //  Send to all
+        for (const key in this.data_connection_collection) {
+          this.data_connection_collection[key].send(JSON.stringify(send_data))
+        }
+
+        //  Update group message storage
+        this.update_group_chat_storage(send_data)
+
+      } else {
+
+        let send_data = JSON.stringify({
+          "type" : "message",
+          "from" : this.my_peer_id,
+          "name" : this.my_participant_name,
+          "participant_id" : this.my_participant_id,
+          "message" : message
+        })
+
+        //  Send to specific peer
+        this.data_connection_collection[peers_id].send(send_data)
       }
 
-      let send_data = JSON.stringify({
-        "type" : "message",
-        "from" : this.my_peer_id,
-        "name" : this.my_participant_name,
-        "participant_id" : this.my_participant_id,
-        "message" : message
-      })
-
-      //  Send to specific peer
-      this.data_connection_collection[peers_id].send(send_data)
-
       let message_id = 'message_'+ this.create_id()
-      let target_chat_messages_wrap = document.getElementById('chat_messages_'+ peers_id)
+      let target_chat_messages_wrap = peers_id === 'group' ? document.getElementById('group_chat') : document.getElementById('chat_messages_'+ peers_id)
       
       if (target_chat_messages_wrap.classList.contains('empty')) {
         target_chat_messages_wrap.classList.remove('empty')
@@ -884,10 +1046,6 @@ document.addEventListener('alpine:init', () => {
       const chat_id = event.target.dataset.chat_id
       const maxsize = 25 * 1024 * 1024  // 25MB Limit
 
-      if (chat_id === '----') {
-        return
-      }
-
       if (files.length > 0) {
 
         //  Check for sizes
@@ -898,45 +1056,101 @@ document.addEventListener('alpine:init', () => {
           }
         }
 
-        for (let i=0; i < files.length; i++) {
+        if (chat_id === 'group') {
+
+          for (const key in this.data_connection_collection) {
+
+            for (let i=0; i < files.length; i++) {
           
-          let conn = this.data_connection_collection[chat_id]
-          let fileReader = new FileReader()
+              let conn = this.data_connection_collection[key]
+              let fileReader = new FileReader()
+    
+              fileReader.onload = () => {
+      
+                let send_data = {
+                  "type": "file-group",
+                  "from": this.my_peer_id,
+                  "name": this.my_participant_name,
+                  "participant_id" : this.my_participant_id,
+                  "filename": files[i].name,
+                  "data": fileReader.result
+                }
 
-          fileReader.onload = () => {
+                //  IMPORTANT NOTE: RAW DATA SHOULD BE SENT SO THAT FILE READER RESULT OBJECT IS INTACT AND NOT CORRUPTED
+                conn.send(send_data)
+    
+                let message_id = 'message_'+ this.create_id()
+                let target_chat_messages_wrap = chat_id === 'group' ? document.getElementById('group_chat') : document.getElementById('chat_messages_'+ chat_id)
+                
+                if (target_chat_messages_wrap.classList.contains('empty')) {
+                  target_chat_messages_wrap.classList.remove('empty')
+                  target_chat_messages_wrap.querySelector('.no_convo').remove()
+                }
+          
+                //  Append message to chat box
+                let participant_message = this.create_file_message_html(message_id, 'mine', this.my_participant_name, files[i].name, fileReader.result)
+                target_chat_messages_wrap.append(participant_message)
+          
+                //  Scroll down the messages wrapper first
+                target_chat_messages_wrap.scrollTo({ top: target_chat_messages_wrap.offsetHeight })
+          
+                setTimeout(() => {
+                  document.querySelector(`#${message_id} .message`).classList.add('appended')
+                }, 500)
+
+                //  Update group message storage
+                this.update_group_chat_storage(send_data, true)
+              }
+        
+              const blob = new Blob([files[i]])
+              fileReader.readAsArrayBuffer(blob)
+            }
+
+          }
+
+        } else {
+
+          for (let i=0; i < files.length; i++) {
+          
+            let conn = this.data_connection_collection[chat_id]
+            let fileReader = new FileReader()
   
-            //  IMPORTANT NOTE: RAW DATA SHOULD BE SENT SO THAT FILE READER RESULT OBJECT IS INTACT AND NOT CORRUPTED
-            conn.send({
-              "type": "file",
-              "from": this.my_peer_id,
-              "name": this.my_participant_name,
-              "participant_id" : this.my_participant_id,
-              "filename": files[i].name,
-              "data": fileReader.result
-            })
-
-            let message_id = 'message_'+ this.create_id()
-            let target_chat_messages_wrap = document.getElementById('chat_messages_'+ chat_id)
-            
-            if (target_chat_messages_wrap.classList.contains('empty')) {
-              target_chat_messages_wrap.classList.remove('empty')
-              target_chat_messages_wrap.querySelector('.no_convo').remove()
+            fileReader.onload = () => {
+    
+              //  IMPORTANT NOTE: RAW DATA SHOULD BE SENT SO THAT FILE READER RESULT OBJECT IS INTACT AND NOT CORRUPTED
+              conn.send({
+                "type": "file",
+                "from": this.my_peer_id,
+                "name": this.my_participant_name,
+                "participant_id" : this.my_participant_id,
+                "filename": files[i].name,
+                "data": fileReader.result
+              })
+  
+              let message_id = 'message_'+ this.create_id()
+              let target_chat_messages_wrap = chat_id === 'group' ? document.getElementById('group_chat') : document.getElementById('chat_messages_'+ chat_id)
+              
+              if (target_chat_messages_wrap.classList.contains('empty')) {
+                target_chat_messages_wrap.classList.remove('empty')
+                target_chat_messages_wrap.querySelector('.no_convo').remove()
+              }
+        
+              //  Append message to chat box
+              let participant_message = this.create_file_message_html(message_id, 'mine', this.my_participant_name, files[i].name, fileReader.result)
+              target_chat_messages_wrap.append(participant_message)
+        
+              //  Scroll down the messages wrapper first
+              target_chat_messages_wrap.scrollTo({ top: target_chat_messages_wrap.offsetHeight })
+        
+              setTimeout(() => {
+                document.querySelector(`#${message_id} .message`).classList.add('appended')
+              }, 500)
             }
       
-            //  Append message to chat box
-            let participant_message = this.create_file_message_html(message_id, 'mine', this.my_participant_name, files[i].name, fileReader.result)
-            target_chat_messages_wrap.append(participant_message)
-      
-            //  Scroll down the messages wrapper first
-            target_chat_messages_wrap.scrollTo({ top: target_chat_messages_wrap.offsetHeight })
-      
-            setTimeout(() => {
-              document.querySelector(`#${message_id} .message`).classList.add('appended')
-            }, 500)
+            const blob = new Blob([files[i]])
+            fileReader.readAsArrayBuffer(blob)
           }
-    
-          const blob = new Blob([files[i]])
-          fileReader.readAsArrayBuffer(blob)
+
         }
 
         //  Re-add video tracks to current stream
@@ -963,6 +1177,20 @@ document.addEventListener('alpine:init', () => {
       setTimeout(() => {
         document.getElementById('input_files').value = null
       }, 1000)
+    },
+
+    update_group_chat_storage(data, is_file = false) {
+      
+      if (sessionStorage.getItem('vidchat_group_chat')) {
+        this.group_chat_container = JSON.parse(sessionStorage.getItem('vidchat_group_chat'))
+      }
+
+      if (is_file) {
+        data.data = this.arraybuffer_to_base64(data.data)
+      }
+
+      this.group_chat_container.push(data)
+      sessionStorage.setItem('vidchat_group_chat', JSON.stringify(this.group_chat_container))
     },
 
     arraybuffer_to_base64(buffer) {
@@ -1077,6 +1305,9 @@ document.addEventListener('alpine:init', () => {
             this.my_stream = null
           }
 
+          //  Re-initialize group chat storage
+          sessionStorage.setItem('vidchat_group_chat', JSON.stringify([]))
+
           this.call_session(false)
 
           this.hanging_up = false
@@ -1123,6 +1354,7 @@ document.addEventListener('alpine:init', () => {
               //  Set peer's chat messages view to group if the closed connection was in view
               if (this.chat_channel[peer_id].state) {
                 this.chat_channel[peer_id].state = false
+                this.chat_channel['group'].state = true
               }
 
               // Update chat channel dropdown
@@ -1190,6 +1422,9 @@ document.addEventListener('alpine:init', () => {
     in_call_howto_content : false,
     my_participant_name : '', 
     show_enter_name_modal : false,
+    // has_back_camera: false,
+    // back_camera_on : false,
+    // back_camera_device_id : null,
     hanging_up : false,
     go_to_room : '',
     page_load_info : false,
@@ -1213,9 +1448,9 @@ document.addEventListener('alpine:init', () => {
     },
 
     chat_channel : {
-      "----" : {
+      "group" : {
         "state" : true,
-        "name" : "----",
+        "name" : "Group",
         "has_new_message" : false
       }
     },
@@ -1404,6 +1639,76 @@ document.addEventListener('alpine:init', () => {
         this.screenshare()
       }
     },
+
+    // async toggle_back_camera() {
+      
+    //   this.back_camera_on = !this.back_camera_on
+
+    //   if (this.back_camera_on) {
+
+    //     if (this.has_back_camera && this.back_camera_device_id) {
+
+    //       // this.media_devices_constraints.video.deviceId.exact = this.back_camera_device_id
+
+    //       const back_camera_constraints = {
+    //         video: {
+    //             width: { ideal: 640 }, // Ideal width in pixels
+    //             height: { ideal: 480 }, // Ideal height in pixels
+    //             frameRate: { ideal: 30 }, // Ideal frame rate in frames per second
+    //             facingMode: "environment" // "user" for front camera, "environment" for back camera
+    //         },
+    //         audio: {
+    //             echoCancellation: true, // Reduce echo
+    //             noiseSuppression: true, // Suppress background noise
+    //             autoGainControl: true   // Automatically control gain
+    //         }
+    //       }
+
+    //       const back_camera_stream = await navigator.mediaDevices.getUserMedia(back_camera_constraints)
+    //       const back_camera_stream_videotracks = back_camera_stream.getVideoTracks()[0]
+  
+    //       // Replace video track with screen track
+    //       for (const key in this.media_connection_collection) {
+    //         let peer = this.media_connection_collection[key].peerConnection.getSenders().find(s => s.track.kind === back_camera_stream_videotracks.kind) //  This here is a track finder
+    //         peer.replaceTrack(back_camera_stream_videotracks)
+    //       }
+    //     }
+
+    //   } else {
+
+    //     const my_stream_videotracks = this.my_stream.getVideoTracks()[0]
+
+    //     // Replace video track with screen track
+    //     for (const key in this.media_connection_collection) {
+    //       let peer = this.media_connection_collection[key].peerConnection.getSenders().find(s => s.track.kind === my_stream_videotracks.kind) //  This here is a track finder
+    //       peer.replaceTrack(my_stream_videotracks)
+    //     }
+    //   }
+    // },
+
+    // async check_has_back_camera() {
+
+    //   let media_devices = await navigator.mediaDevices.enumerateDevices()
+
+    //   for (const key in media_devices) {
+
+    //     if (media_devices[key].kind === 'videoinput') {
+
+    //       if (media_devices[key].label.toLowerCase().includes('back')) {
+
+    //         console.log(media_devices[key].label)
+    //         console.log(media_devices[key].deviceId)
+
+    //         this.back_camera_device_id = media_devices[key].deviceId
+    //         this.has_back_camera = true
+    //         break
+    //       }
+    //     }
+    //   }
+
+    //   console.log(media_devices)
+    //   console.log(this.back_camera_device_id)
+    // },
 
     toggle_fullscreen(element_id) {
 

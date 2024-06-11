@@ -1092,6 +1092,7 @@ main {
 #chat_peers {
   max-height: 12%;
   height: 100%;
+  margin-bottom: auto;
 }
 
 #chat_peers > p {
