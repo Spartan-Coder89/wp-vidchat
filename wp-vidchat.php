@@ -2,14 +2,14 @@
 
 /**
  * @package WPVidChat
- * @version 0.3
+ * @version 0.4
  */
 /*
 Plugin Name: WP Vidchat
 Plugin URI: https://simonjiloma.com
 Description: Peer to peer, private and secure video chat application
 Author: Simon Jiloma
-Version: 0.3
+Version: 0.4
 Author URI: https://simonjiloma.com
 */
 
