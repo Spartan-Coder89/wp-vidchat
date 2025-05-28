@@ -314,7 +314,7 @@ class WPVidChat
     $to = $request['recipient'];
     $subject = 'You are invited to join.';
 
-    $headers = 'From: '. get_option('blogname') .' <'. get_option('admin_email') .'>'."\r\n";
+    $headers = 'From: '. get_option('blogname') .' <support@chitty-chat.com>'."\r\n";
     $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
 
     $message = '
